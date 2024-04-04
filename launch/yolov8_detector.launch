@@ -7,9 +7,9 @@
         <!-- Package name, Node name, Python file under scripts folder , restart if it fails, with no delay, output to terminal-->
 
         <!-- Yolov8 model ".pt" file path has to be from root namespace - python and ROS requirement -->
-        <param name="model_coco_path_from_root" type="string" value="/home/dev/actor_ws/src/Route-Yolov8/models/yolov8m.pt" />
-        <param name="model_stop_path_from_root" type="string" value="/home/dev/actor_ws/src/Route-Yolov8/models/m_best.pt" />
-        <param name="model_tire_path_from_root" type="string" value="/home/dev/actor_ws/src/Route-Yolov8/models/tire.pt" />
+        <param name="model_coco_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/yolov8m.pt" />
+        <param name="model_stop_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/m_best.pt" />
+        <param name="model_tire_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/tire.pt" />
 
         <!-- Input Topic -->
         <param name="imgtopic_name" type="string" value="/camera/image_raw" />
