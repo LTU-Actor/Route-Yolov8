@@ -23,6 +23,9 @@ bridge = CvBridge()
 global model_stop_path  # Get yolov8 stop sign detection model's path
 global model_coco_path  # Get yolov8 COCO trained model's path
 global model_tire_path  # Get yolov8 tire detection model's path
+global model_u_model_path # Get yolov8 u_model path
+
+global person_box # Bounding box for person object
 
 global display_size
 display_size = 640  # pixel resolution used for debug outputs
@@ -36,6 +39,7 @@ yolo_called = False  # True if yolo detection is called for from topic
 ########################################################################
 ### Functions:
 
+# This is a comment
 
 # Image callback - Converts ROS Image to OpenCV Image
 def get_image_callback(Image):
@@ -72,13 +76,14 @@ def yolo_look_for_object_callback(String):
     yolo_called = True
     # When called
     look_for = String.data
-    if look_for in {"stop sign", "stop-sign", "stop", "sign", "signs", "stop signs", "stop-signs"}:
-        detect_stop_sign()
-    if look_for in {"tire", "tires"}:
-        detect_tire()
-    if look_for in {"pedestrian", "pedestrians", "person", "persons"}:
-        detect_person()
-    # ^^^ This allows to efficiently run these detections only when needed
+    if look_for in {"stop sign", "stop-sign", "stop", "sign", "signs", "stop signs", "stop-signs", "tire", "tires", 
+                    "pothole", "potholes", "pedestrian", "pedestrians", "person", "persons"}:
+        detect_object()
+    # if look_for in {"tire", "tires"}:
+    #     detect_tire()
+    # if look_for in {"pedestrian", "pedestrians", "person", "persons"}:
+    #     detect_person()
+    #^^^ This allows to efficiently run these detections only when needed
 
     # Once detection is complete, call has ended
     yolo_called = False
@@ -165,8 +170,17 @@ def infer_image_using(
 # Take yolo v8 results object and analyze them for classes and bounding boxes
 def analyze_results(results, classes, image_size_in_sq_pixels=409600):
     # Outputs initialization:
-    detected = 0
-    biggest_bounding_box = 0
+    global person_box
+    detected = np.zeros(4)
+    biggest_bounding_boxes = np.zeros(4)
+    stop_sign_detected = 0
+    tire_detected = 0
+    pothole_detected = 0
+    person_detected = 0
+    stop_sign_biggest_bounding_box = 0
+    tire_biggest_bounding_box = 0
+    pothole_biggest_bounding_box = 0
+    person_biggest_bounding_box = 0
     results_image = resize_image(results[0].plot())  # resize image for debug display
 
     # Check the results for the specified classes
@@ -177,17 +191,48 @@ def analyze_results(results, classes, image_size_in_sq_pixels=409600):
 
         for idx, box in enumerate(boxes):  # Iterate bounding boxes and find the largest
             label = labels[int(box.cls)]  # Get the class label for this box
-            if label in classes:  # Check if label matches the class we are looking for
-                detected += 1  # Counter for individual detections
+            if label == "stop-sign":  # Check if label matches the class we are looking for
+                stop_sign_detected += 1  # Counter for individual detections
                 # Find the width and height of the bounding box
-                box_width = box.xywh[0][2]
-                box_height = box.xywh[0][3]
-                area = 100 * ((box_width * box_height) / image_size_in_sq_pixels)  # Percent Area
-                if area > biggest_bounding_box:  # Store the largest bounding box
-                    biggest_bounding_box = area
+                sign_box_width = box.xywh[0][2]
+                sign_box_height = box.xywh[0][3]
+                sign_area = 100 * ((sign_box_width * sign_box_height) / image_size_in_sq_pixels)  # Percent Area
+                if sign_area > stop_sign_biggest_bounding_box:  # Store the largest bounding box
+                    stop_sign_biggest_bounding_box = sign_area
+            if label == "tire":  # Check if label matches the class we are looking for
+                tire_detected += 1  # Counter for individual detections
+                # Find the width and height of the bounding box
+                tire_box_width = box.xywh[0][2]
+                tire_box_height = box.xywh[0][3]
+                tire_area = 100 * ((tire_box_width * tire_box_height) / image_size_in_sq_pixels)  # Percent Area
+                if tire_area > tire_biggest_bounding_box:  # Store the largest bounding box
+                    tire_biggest_bounding_box = tire_area
+            if label == "pothole":  # Check if label matches the class we are looking for
+                pothole_detected += 1  # Counter for individual detections
+                # Find the width and height of the bounding box
+                pothole_box_width = box.xywh[0][2]
+                pothole_box_height = box.xywh[0][3]
+                pothole_area = 100 * ((pothole_box_width * pothole_box_height) / image_size_in_sq_pixels)  # Percent Area
+                if pothole_area > pothole_biggest_bounding_box:  # Store the largest bounding box
+                    pothole_biggest_bounding_box = pothole_area
+            if label == "person":  # Check if label matches the class we are looking for
+                person_detected += 1  # Counter for individual detections
+                # Find the width and height of the bounding box
+                person_box_width = box.xywh[0][2]
+                person_box_height = box.xywh[0][3]
+                person_area = 100 * ((person_box_width * person_box_height) / image_size_in_sq_pixels)  # Percent Area
+                if person_area > person_biggest_bounding_box:  # Store the largest bounding box
+                    person_biggest_bounding_box = person_area
+                    person_box = box # Store person boudning box for vest detection
+
+    # Store detected object info and bounding box area in arrays
+    detected[0, 1, 2, 3] = [stop_sign_detected, tire_detected, pothole_detected, person_detected]
+    biggest_bounding_boxes[0, 1, 2, 3] = [stop_sign_biggest_bounding_box, tire_biggest_bounding_box, 
+                                                  pothole_biggest_bounding_box, person_biggest_bounding_box]
+
 
     # Return the count of detections, max bounding box size and plotted image
-    return (detected, int(biggest_bounding_box * 100), results_image)
+    return (detected, int(biggest_bounding_boxes * 100), person_box, results_image)
 
 
 # ----------------------------------------------------------------
@@ -207,103 +252,224 @@ def clear_gpu_memory():
 
 # ----------------------------------------------------------------
 
+# ----------------------------------------------------------------
 
-# Runs stop sign detection and watches for fake signs
-def detect_stop_sign():
-    # print("start")
-    # Detect stop signs
-    (detected, biggest_bounding_box, results_image) = analyze_results(
-        infer_image_using(_path=model_coco_path, _source=cam_image, _classes=11),
-        classes={"stop sign"},
-        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
-    )  # {11: "stop sign"}
-    # Detect fake stop signs
-    (fake_detected, fake_biggest_bounding_box, fake_results_image) = analyze_results(
-        infer_image_using(_path=model_stop_path, _source=cam_image, _conf=0.3),
-        classes={'stop-sign-fake'},
-        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
-    )  # {0: 'stop-sign', 1: 'stop-sign-fake', 2: 'stop-sign-obstructed', 3: 'stop-sign-vandalized'}
-    if fake_detected > 0:
-        detected = 0
-        print("!! fake sign detected !!")
-    sign_msg = UInt8()
-    size_msg = UInt32()
-    # print(biggest_bounding_box)
-    # detected > fake_detected cases:
-    # 0 - 0 = no sign
-    # 1 - 0 = good sign
-    # 1 - 1 = fake sign
-    # 2 - 1 = fake sign and a good sign
-    # 0 - 1 = fake sign
-    # 1 - 2 = two fake signs
-    if detected > fake_detected:  # good sign detected
-        sign_msg.data = detected - fake_detected  # No. of good signs detected
-        sign_detect_pub.publish(sign_msg)
-        size_msg.data = biggest_bounding_box  # Bug: could be box of fake sign when two detected
-        sign_size_pub.publish(size_msg)
-    else:  # fake sign detected or no sign detected
-        sign_msg.data = 0
-        sign_detect_pub.publish(sign_msg)
-        size_msg.data = 0
-        sign_size_pub.publish(size_msg)
+# Runs unified model object detection
 
+def detect_object():
+    # Detect objects
+    (objects_detected, objects_biggest_bounding_boxes, person_box, results_image) = analyze_results(
+        infer_image_using(_path=model_u_model_path, _source=cam_image),
+        classes={"stop-sign", "tire", "pothole", "person"},
+        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+    )  
+
+    stop_sign_msg = UInt8()
+    stop_sign_size_msg = UInt32()
+    tire_msg = UInt8()
+    tire_size_msg = UInt32()
+    pothole_msg = UInt8()
+    pothole_size_msg = UInt32()
+    person_msg = UInt8()
+    person_size_msg = UInt32()
+
+    # objects_detected array with num of detected objects:
+    # index 0 = stop_sign_detected
+    # index 1 = tire_detected
+    # index 2 = pothole_detected
+    # index 3 = person_detected
+
+    # objects_biggest_bounding_boxes array with biggest bounding box area for each class:
+    # index 0 = stop sign biggest box
+    # index 1 = tire biggest box
+    # index 2 = pothole biggest box
+    # index 3 = person biggest box
+
+    # Publish stop sign data
+    if objects_detected[0] > 0: # stop signs detected > 0
+        stop_sign_msg.data = objects_detected[0]
+        sign_detect_pub.publish(stop_sign_msg)
+        stop_sign_size_msg.data = objects_biggest_bounding_boxes[0]
+        sign_size_pub.publish(stop_sign_size_msg)
+    else:  
+        stop_sign_msg.data = 0
+        sign_detect_pub.publish(stop_sign_msg)
+        stop_sign_size_msg.data = 0
+        sign_size_pub.publish(stop_sign_size_msg)
+
+    # Publish tire data
+    if objects_detected[1] > 0: # tires detected > 0
+        tire_msg.data = objects_detected[1]
+        tire_detect_pub.publish(tire_msg)
+        tire_size_msg.data = objects_biggest_bounding_boxes[1]
+        tire_size_pub.publish(tire_size_msg)
+    else:
+        tire_msg.data = 0
+        tire_detect_pub.publish(tire_msg)
+        tire_size_msg.data = 0
+        tire_size_pub.publish(tire_size_msg)
+
+    # Publish pothole data
+    if objects_detected[2] > 0: # potholes detected > 0
+        pothole_msg.data = objects_detected[2]
+        pothole_detect_pub.publish(pothole_msg)
+        pothole_size_msg.data = objects_biggest_bounding_boxes[2]
+        pothole_size_pub.publish(pothole_size_msg)
+    else:
+        pothole_msg.data = 0
+        pothole_detect_pub.publish(pothole_msg)
+        pothole_size_msg.data = 0
+        pothole_size_pub.publish(pothole_size_msg)
+
+    # Publish person data
+    if objects_detected[3] > 0: # persons detected > 0
+        person_msg.data = objects_detected[3]
+        person_detect_pub.publish(person_msg)
+        person_size_msg.data = objects_biggest_bounding_boxes[3]
+        person_size_pub.publish(person_size_msg)
+    else:
+        person_msg.data = 0
+        person_detect_pub.publish(person_msg)
+        person_size_msg.data = 0
+        person_size_pub.publish(person_size_msg)
+    
     if config_.debug:
         # Show the detected images real-time for debug
-        vertically_stacked_img = np.concatenate((results_image, fake_results_image), axis=0)
-        vertically_stacked_img = bridge.cv2_to_imgmsg(vertically_stacked_img, "bgr8")
-        sign_debug_pub.publish(vertically_stacked_img)
+        debug_img = bridge.cv2_to_imgmsg(results_image, "bgr8")
+        object_debug_pub.publish(debug_img)
+
+    if config_.enable_vest_mask: # Show the vest mask
+        # Get the results image, make it black and paste the person bounding box with mask applied onto image
+        hsv_image = cv2.cvtColor(results_image, cv2.COLOR_BGR2HSV)
+
+        # Define lower and upper HSV thresholds for bright orange
+        lower_orange = np.array([15, 80, 90])
+        upper_orange = np.array([30, 255, 255])
+
+        mask = cv2.inRange(hsv_image, lower_orange, upper_orange)
+
+        # Get the xywh info from the person bounding box
+        person_box_x_pos = person_box.xywh[0][0]
+        person_box_y_pos = person_box.xywh[0][1]
+        person_box_width = person_box.xywh[0][2]
+        person_box_height = person_box.xywh[0][3]
+
+        # Extract the bounding box from the mask image
+        vest_mask_img_box = mask[person_box_y_pos:(person_box_y_pos + person_box_height),
+                             person_box_x_pos:(person_box_x_pos + person_box_width)]
+        
+        # Apply the black_mask to the mask image to make black_img
+        black_mask = np.zeros_like(mask)
+        black_mask[:,:] = (0, 0, 0)
+        black_img = cv2.bitwise_and(mask, black_mask)
+
+        # Paste the vest_mask_img_box onto the black_img
+        black_img[person_box_y_pos:(person_box_y_pos + person_box_height), 
+                  person_box_x_pos:(person_box_x_pos + person_box_width)] = vest_mask_img_box
+
+        #nConvert new black image to imgmsg
+        debug_img = bridge.cv2_to_imgmsg(black_img, "bgr8")
+        vest_mask_pub.publish(debug_img)
 
     clear_gpu_memory()
 
 
-# ----------------------------------------------------------------
+# # Runs stop sign detection and watches for fake signs
+# def detect_stop_sign():
+#     # print("start")
+#     # Detect stop signs
+#     (detected, biggest_bounding_box, results_image) = analyze_results(
+#         infer_image_using(_path=model_coco_path, _source=cam_image, _classes=11),
+#         classes={"stop sign"},
+#         image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+#     )  # {11: "stop sign"}
+#     # Detect fake stop signs
+#     (fake_detected, fake_biggest_bounding_box, fake_results_image) = analyze_results(
+#         infer_image_using(_path=model_stop_path, _source=cam_image, _conf=0.3),
+#         classes={'stop-sign-fake'},
+#         image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+#     )  # {0: 'stop-sign', 1: 'stop-sign-fake', 2: 'stop-sign-obstructed', 3: 'stop-sign-vandalized'}
+#     if fake_detected > 0:
+#         detected = 0
+#         print("!! fake sign detected !!")
+#     sign_msg = UInt8()
+#     size_msg = UInt32()
+#     # print(biggest_bounding_box)
+#     # detected > fake_detected cases:
+#     # 0 - 0 = no sign
+#     # 1 - 0 = good sign
+#     # 1 - 1 = fake sign
+#     # 2 - 1 = fake sign and a good sign
+#     # 0 - 1 = fake sign
+#     # 1 - 2 = two fake signs
+#     if detected > fake_detected:  # good sign detected
+#         sign_msg.data = detected - fake_detected  # No. of good signs detected
+#         sign_detect_pub.publish(sign_msg)
+#         size_msg.data = biggest_bounding_box  # Bug: could be box of fake sign when two detected
+#         sign_size_pub.publish(size_msg)
+#     else:  # fake sign detected or no sign detected
+#         sign_msg.data = 0
+#         sign_detect_pub.publish(sign_msg)
+#         size_msg.data = 0
+#         sign_size_pub.publish(size_msg)
+
+#     if config_.debug:
+#         # Show the detected images real-time for debug
+#         vertically_stacked_img = np.concatenate((results_image, fake_results_image), axis=0)
+#         vertically_stacked_img = bridge.cv2_to_imgmsg(vertically_stacked_img, "bgr8")
+#         sign_debug_pub.publish(vertically_stacked_img)
+
+#     clear_gpu_memory()
 
 
-# Runs tire detection
-def detect_tire():
-    # Detect tires
-    (detected, biggest_bounding_box, results_image) = analyze_results(
-        infer_image_using(_path=model_tire_path, _source=cam_image),
-        classes={"tire"},
-        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
-    )  # {0: "tire"} ?????
-    # Publish results
-    tire_detect_msg = UInt8()
-    tire_size_msg = UInt32()
-    tire_detect_msg.data = detected
-    tire_detect_pub.publish(tire_detect_msg)
-    tire_size_msg.data = biggest_bounding_box
-    tire_size_pub.publish(tire_size_msg)
-
-    if config_.debug:
-        # Show the detected images real-time for debug
-        debug_img = bridge.cv2_to_imgmsg(results_image, "bgr8")
-        tire_debug_pub.publish(debug_img)
+# # ----------------------------------------------------------------
 
 
-# ----------------------------------------------------------------
+# # Runs tire detection
+# def detect_tire():
+#     # Detect tires
+#     (detected, biggest_bounding_box, results_image) = analyze_results(
+#         infer_image_using(_path=model_tire_path, _source=cam_image),
+#         classes={"tire"},
+#         image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+#     )  # {0: "tire"} ?????
+#     # Publish results
+#     tire_detect_msg = UInt8()
+#     tire_size_msg = UInt32()
+#     tire_detect_msg.data = detected
+#     tire_detect_pub.publish(tire_detect_msg)
+#     tire_size_msg.data = biggest_bounding_box
+#     tire_size_pub.publish(tire_size_msg)
+
+#     if config_.debug:
+#         # Show the detected images real-time for debug
+#         debug_img = bridge.cv2_to_imgmsg(results_image, "bgr8")
+#         tire_debug_pub.publish(debug_img)
 
 
-# Runs person detection
-def detect_person():
-    # Detect persons
-    (detected, biggest_bounding_box, results_image) = analyze_results(
-        infer_image_using(_path=model_coco_path, _source=cam_image, _classes=0),
-        classes="person",
-        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
-    )  # {0: "person"}
-    # Publish results
-    person_detect_msg = UInt8()
-    person_size_msg = UInt32()
-    person_detect_msg.data = detected
-    person_detect_pub.publish(person_detect_msg)
-    person_size_msg.data = biggest_bounding_box
-    person_size_pub.publish(person_size_msg)
+# # ----------------------------------------------------------------
 
-    if config_.debug:
-        # Show the detected images real-time for debug
-        debug_img = bridge.cv2_to_imgmsg(results_image, "bgr8")
-        person_debug_pub.publish(debug_img)
+
+# # Runs person detection
+# def detect_person():
+#     # Detect persons
+#     (detected, biggest_bounding_box, results_image) = analyze_results(
+#         infer_image_using(_path=model_coco_path, _source=cam_image, _classes=0),
+#         classes="person",
+#         image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+#     )  # {0: "person"}
+#     # Publish results
+#     person_detect_msg = UInt8()
+#     person_size_msg = UInt32()
+#     person_detect_msg.data = detected
+#     person_detect_pub.publish(person_detect_msg)
+#     person_size_msg.data = biggest_bounding_box
+#     person_size_pub.publish(person_size_msg)
+
+#     if config_.debug:
+#         # Show the detected images real-time for debug
+#         debug_img = bridge.cv2_to_imgmsg(results_image, "bgr8")
+#         person_debug_pub.publish(debug_img)
 
 
 # ----------------------------------------------------------------
@@ -322,6 +488,7 @@ if __name__ == "__main__":
     model_coco_path = rospy.get_param("~model_coco_path_from_root")  # Load latest path
     model_stop_path = rospy.get_param("~model_stop_path_from_root")  # Load latest path
     model_tire_path = rospy.get_param("~model_tire_path_from_root")  # Load latest path
+    model_u_model_path = rospy.get_param("~model_u_model_path_from_root") # Load u_model path
 
     # Image input from topic - from launch file
     imgtopic = rospy.get_param("~imgtopic_name")
@@ -335,26 +502,42 @@ if __name__ == "__main__":
     # Stop Sign detection:
     sign_detect_topic = rospy.get_param("~stop_sign_detected_topic_name")
     sign_size_topic = rospy.get_param("~stop_sign_size_topic_name")
-    sign_debug_topic = rospy.get_param("~stop_sign_debug_topic_name")
+    # sign_debug_topic = rospy.get_param("~stop_sign_debug_topic_name")
     sign_detect_pub = rospy.Publisher(sign_detect_topic, UInt8, queue_size=1)  # No. of signs detected
     sign_size_pub = rospy.Publisher(sign_size_topic, UInt32, queue_size=1)  # Biggest sign as % area of image
-    sign_debug_pub = rospy.Publisher(sign_debug_topic, Image, queue_size=1)  # Anotated image debug output
+    # sign_debug_pub = rospy.Publisher(sign_debug_topic, Image, queue_size=1)  # Anotated image debug output
 
     # person detection:
     person_detect_topic = rospy.get_param("~person_detected_topic_name")
     person_size_topic = rospy.get_param("~person_size_topic_name")
-    person_debug_topic = rospy.get_param("~person_debug_topic_name")
+    # person_debug_topic = rospy.get_param("~person_debug_topic_name")
     person_detect_pub = rospy.Publisher(person_detect_topic, UInt8, queue_size=1)  # No. of persons detected
     person_size_pub = rospy.Publisher(person_size_topic, UInt32, queue_size=1)  # Biggest person as % area of image
-    person_debug_pub = rospy.Publisher(person_debug_topic, Image, queue_size=1)  # Anotated image debug output
+    # person_debug_pub = rospy.Publisher(person_debug_topic, Image, queue_size=1)  # Anotated image debug output
 
     # Tire detection:
     tire_detect_topic = rospy.get_param("~tire_detected_topic_name")
     tire_size_topic = rospy.get_param("~tire_size_topic_name")
-    tire_debug_topic = rospy.get_param("~tire_debug_topic_name")
+    # tire_debug_topic = rospy.get_param("~tire_debug_topic_name")
     tire_detect_pub = rospy.Publisher(tire_detect_topic, UInt8, queue_size=1)  # No. of tires detected
     tire_size_pub = rospy.Publisher(tire_size_topic, UInt32, queue_size=1)  # Biggest tire as % area of image
-    tire_debug_pub = rospy.Publisher(tire_debug_topic, Image, queue_size=1)  # Anotated image debug output
+    # tire_debug_pub = rospy.Publisher(tire_debug_topic, Image, queue_size=1)  # Anotated image debug output
+
+    # Pothole detection:
+    pothole_detect_topic = rospy.get_param("~pothole_detected_topic_name")
+    pothole_size_topic = rospy.get_param("~pothole_size_topic_name")
+    # pothole_debug_topic = rospy.get_param("~pothole_debug_topic_name")
+    pothole_detect_pub = rospy.Publisher(pothole_detect_topic, UInt8, queue_size=1)  # No. of tires detected
+    pothole_size_pub = rospy.Publisher(pothole_size_topic, UInt32, queue_size=1)  # Biggest tire as % area of image
+    # pothole_debug_pub = rospy.Publisher(pothole_debug_topic, Image, queue_size=1)  # Anotated image debug output
+
+    # Object debug:
+    object_debug_topic = rospy.get_param("~object_debug_topic_name")
+    object_debug_pub = rospy.Publisher(object_debug_topic, Image, queue_size=1) # Anotated image debug output
+
+    # >>> Topics and publishers for person vest mask
+    vest_mask_topic = rospy.get_param("~vest_mask_topic_name")
+    vest_mask_pub = rospy.Publisher(vest_mask_topic, Image, queue_size=1) # Person bounding box with mask for vest extraction
 
     rospy.spin()  # Runs callbacks
 

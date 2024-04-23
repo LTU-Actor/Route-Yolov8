@@ -10,6 +10,7 @@
         <param name="model_coco_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/yolov8m.pt" />
         <param name="model_stop_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/m_best.pt" />
         <param name="model_tire_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/tire.pt" />
+        <param name="model_u_model_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/u_model_v8.pt" />
 
         <!-- Input Topic -->
         <param name="imgtopic_name" type="string" value="/camera/image_raw" />
@@ -20,15 +21,22 @@
         <!-- Output Topic -->
         <param name="stop_sign_detected_topic_name" type="string" value="/stop_sign_detected" />
         <param name="stop_sign_size_topic_name" type="string" value="/stop_sign_size" />
-        <param name="stop_sign_debug_topic_name" type="string" value="/stop_sign_detector/debug" />
+        <!-- <param name="stop_sign_debug_topic_name" type="string" value="/stop_sign_detector/debug" /> -->
 
         <param name="person_detected_topic_name" type="string" value="/person_detected" />
         <param name="person_size_topic_name" type="string" value="/person_size" />
-        <param name="person_debug_topic_name" type="string" value="/person_detector/debug" />
+        <!-- <param name="person_debug_topic_name" type="string" value="/person_detector/debug" /> -->
 
         <param name="tire_detected_topic_name" type="string" value="/tire_detected" />
         <param name="tire_size_topic_name" type="string" value="/tire_size" />
-        <param name="tire_debug_topic_name" type="string" value="/tire_detector/debug" />
+        <!-- <param name="tire_debug_topic_name" type="string" value="/tire_detector/debug" /> -->
+
+        <param name="pothole_detected_topic_name" type="string" value="/pothole_detected" />
+        <param name="pothole_size_topic_name" type="string" value="/pothole_size" />
+        <!-- <param name="pothole_debug_topic_name" type="string" value="/pothole_detector/debug" /> -->
+
+        <param name="object_debug_topic_name" type="string" value="/object_detector/debug" />
+        <param name="vest_mask_topic_name" type="string" value="/vest_mask" />
 
     </node>
 
