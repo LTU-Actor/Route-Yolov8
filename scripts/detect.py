@@ -196,6 +196,7 @@ def infer_image_using(
 def analyze_results(results, classes, image_size_in_sq_pixels=409600):
     # Outputs initialization:
     person_box = None
+    sign_box = None
     detected = []
     biggest_bounding_boxes = []
     stop_sign_detected = 0
@@ -230,6 +231,7 @@ def analyze_results(results, classes, image_size_in_sq_pixels=409600):
                     sign_area > stop_sign_biggest_bounding_box
                 ):  # Store the largest bounding box
                     stop_sign_biggest_bounding_box = sign_area
+                    sign_box = box
             if label == "tire":  # Check if label matches the class we are looking for
                 tire_detected += 1  # Counter for individual detections
                 # Find the width and height of the bounding box
@@ -281,7 +283,7 @@ def analyze_results(results, classes, image_size_in_sq_pixels=409600):
     biggest_bounding_boxes.append(int(person_biggest_bounding_box * 100))
 
     # Return the count of detections, max bounding box size and plotted image
-    return (detected, biggest_bounding_boxes, person_box, results_image)
+    return (detected, biggest_bounding_boxes, person_box, sign_box, results_image)
 
 
 # ----------------------------------------------------------------
@@ -308,7 +310,7 @@ def clear_gpu_memory():
 
 def detect_object():
     # Detect objects
-    (objects_detected, objects_biggest_bounding_boxes, person_box, results_image) = (
+    (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
         analyze_results(
             infer_image_using(_path=model_u_model_path, _source=cam_image),
             classes={"stop-sign", "tire", "pothole", "person"},
