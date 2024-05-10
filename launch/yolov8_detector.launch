@@ -13,8 +13,8 @@
         <param name="model_u_model_path_from_root" type="string" value="$(find ltu_actor_route_yolov8_detector)/models/u_model_v8.pt" />
 
         <!-- Input Topic -->
-        <param name="imgtopic_name" type="string" value="/camera/image_raw" />
-        <!-- <param name="imgtopic_name" type="string" value="/cam_pub/image_raw" /> -->
+        <!-- <param name="imgtopic_name" type="string" value="/camera/image_raw" /> -->
+        <param name="imgtopic_name" type="string" value="/cam_pub/image_raw" />
 
         <param name="look_for_object_topic_name" type="string" value="/yolo_look_for" />
 

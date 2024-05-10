@@ -40,7 +40,12 @@ global cam_image  # image used for detection
 global yolo_called
 yolo_called = False  # True if yolo detection is called for from topic
 global real_stop_sign_detected
-real_stop_sign_detected = False # True if real stop sign has been detected
+real_stop_sign_detected = False  # True if real stop sign has been detected
+# OCR used to extract text from the image
+global ocr_reader
+ocr_reader = easyocr.Reader(
+            ["en"], gpu=True
+        )  # this needs to run only once to load the model into memory
 
 ########################################################################
 ### Functions:
@@ -233,7 +238,7 @@ def analyze_results(results, classes, image_size_in_sq_pixels=409600):
                     sign_area > stop_sign_biggest_bounding_box
                 ):  # Store the largest bounding box
                     stop_sign_biggest_bounding_box = sign_area
-                    sign_box = box # Store the sign box for OCR
+                    sign_box = box  # Store the sign box for OCR
             if label == "tire":  # Check if label matches the class we are looking for
                 tire_detected += 1  # Counter for individual detections
                 # Find the width and height of the bounding box
@@ -313,13 +318,18 @@ def clear_gpu_memory():
 def detect_object():
     global cam_image
     global real_stop_sign_detected
+    global ocr_reader
     # Detect objects
-    (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
-        analyze_results(
-            infer_image_using(_path=model_u_model_path, _source=cam_image),
-            classes={"stop-sign", "tire", "pothole", "person"},
-            image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
-        )
+    (
+        objects_detected,
+        objects_biggest_bounding_boxes,
+        person_box,
+        sign_box,
+        results_image,
+    ) = analyze_results(
+        infer_image_using(_path=model_u_model_path, _source=cam_image),
+        classes={"stop-sign", "tire", "pothole", "person"},
+        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
     )
 
     stop_sign_msg = UInt8()
@@ -350,27 +360,29 @@ def detect_object():
         sign_box_y_pos = sign_box.xywh[0][1]
         sign_box_width = sign_box.xywh[0][2]
         sign_box_height = sign_box.xywh[0][3]
-        
+
         # Crop the image to the size of the bounding box
         sign_box_left = int(sign_box_x_pos - 0.5 * sign_box_width)
         sign_box_right = int(sign_box_x_pos + 0.5 * sign_box_width)
         sign_box_top = int(sign_box_y_pos - 0.5 * sign_box_height)
         sign_box_bottom = int(sign_box_y_pos + 0.5 * sign_box_height)
-        
+
         # Extract the bounding box
         sign_extracted = cam_image[
-            sign_box_top : sign_box_bottom,
-            sign_box_left : sign_box_right
+            sign_box_top:sign_box_bottom, sign_box_left:sign_box_right
         ]
-        
+
+        sign_debug = bridge.cv2_to_imgmsg(sign_extracted, "bgr8")
+
         if config_.enable_sign_box:
-            sign_box_pub.publish(sign_extracted)
+            sign_box_pub.publish(sign_debug)
+
         
-        # OCR used to extract text from the image
-        reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
-        
-        result = reader.readtext(sign_extracted, detail=0) # extract the text from the image
-        
+
+        result = ocr_reader.readtext(
+            sign_extracted, detail=0
+        )  # extract the text from the image
+
         # Iterates through the results and checks if STOP is in the text
         for text in result:
             if "STOP" in text.upper():
@@ -378,11 +390,16 @@ def detect_object():
                 break
             else:
                 real_stop_sign_detected = False
-        
-        if real_stop_sign_detected: # if STOP is detected
+
+        if real_stop_sign_detected:  # if STOP is detected
             stop_sign_msg.data = 1
             sign_detect_pub.publish(stop_sign_msg)
             stop_sign_size_msg.data = objects_biggest_bounding_boxes[0]
+            sign_size_pub.publish(stop_sign_size_msg)
+        else:
+            stop_sign_msg.data = 0
+            sign_detect_pub.publish(stop_sign_msg)
+            stop_sign_size_msg.data = 0
             sign_size_pub.publish(stop_sign_size_msg)
     else:
         stop_sign_msg.data = 0
@@ -436,8 +453,12 @@ def detect_object():
         hsv_image = cv2.cvtColor(cam_image, cv2.COLOR_BGR2HSV)
 
         # Define lower and upper HSV thresholds for bright orange
-        lower_orange = np.array([config_.vest_mask_l_hue, config_.vest_mask_l_sat, config_.vest_mask_l_lum])
-        upper_orange = np.array([config_.vest_mask_h_hue, config_.vest_mask_h_sat, config_.vest_mask_h_lum])
+        lower_orange = np.array(
+            [config_.vest_mask_l_hue, config_.vest_mask_l_sat, config_.vest_mask_l_lum]
+        )
+        upper_orange = np.array(
+            [config_.vest_mask_h_hue, config_.vest_mask_h_sat, config_.vest_mask_h_lum]
+        )
 
         mask = cv2.inRange(hsv_image, lower_orange, upper_orange)
 
@@ -446,7 +467,7 @@ def detect_object():
         person_box_y_pos = person_box.xywh[0][1]
         person_box_width = person_box.xywh[0][2]
         person_box_height = person_box.xywh[0][3]
-        
+
         person_box_x_low = int(person_box_x_pos - 0.5 * person_box_width)
         person_box_x_high = int(person_box_x_pos + 0.5 * person_box_width)
         person_box_y_low = int(person_box_y_pos - 0.5 * person_box_height)
@@ -454,8 +475,7 @@ def detect_object():
 
         # Extract the bounding box from the mask image
         vest_mask_img_box = mask[
-            person_box_y_low : person_box_y_high,
-            person_box_x_low : person_box_x_high
+            person_box_y_low:person_box_y_high, person_box_x_low:person_box_x_high
         ]
 
         # Apply the black_mask to the mask image to make black_img
@@ -464,8 +484,7 @@ def detect_object():
 
         # Paste the vest_mask_img_box onto the black_img
         black_img[
-            person_box_y_low: person_box_y_high,
-            person_box_x_low : person_box_x_high
+            person_box_y_low:person_box_y_high, person_box_x_low:person_box_x_high
         ] = vest_mask_img_box
 
         # Convert new black image to imgmsg
@@ -661,15 +680,11 @@ if __name__ == "__main__":
     # >>> Topics and publishers for person vest mask and sign box
     # Person bounding box with mask for vest extraction
     vest_mask_topic = rospy.get_param("~vest_mask_topic_name")
-    vest_mask_pub = rospy.Publisher(
-        vest_mask_topic, Image, queue_size=1
-    )
-    
+    vest_mask_pub = rospy.Publisher(vest_mask_topic, Image, queue_size=1)
+
     # Sign bounding box
     sign_box_topic = rospy.get_param("~sign_box_topic_name")
-    sign_box_pub = rospy.Publisher(
-        sign_box_topic, Image, queue_size=1
-    )
+    sign_box_pub = rospy.Publisher(sign_box_topic, Image, queue_size=1)
 
     rospy.spin()  # Runs callbacks
 
