@@ -70,7 +70,7 @@ Yolo v8 models can be added or swapped out in the `/models` folder and names upd
     - Detected Topic: `<person_detected_topic_name>`
     - Size Topic: `<person_size_topic_name>`
 
-- SimulatedPothole Detection:
+- Simulated Pothole Detection:
     - Detected Topic: `<pothole_detected_topic_name>`
     - Size Topic: `<pothole_size_topic_name>`
 
