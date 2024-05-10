@@ -1,6 +1,6 @@
 # ROS YOLOv8 Object Detection Package
 
-This ROS package utilizes YOLOv8 for real-time object detection in images received from a camera topic. The package is designed to detect specific objects, such as stop signs, tires, and pedestrians, based on user requests.
+This ROS package utilizes YOLOv8 for real-time object detection in images received from a camera topic. The package is designed to detect specific objects, such as stop signs, tires, simulated potholes, and pedestrians, based on user requests. The package implements EasyOCR for differentiating between fake stop signs from real stop signs. The package can also display a mask to highlight an orange vest on a pedestrian.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ This ROS package utilizes YOLOv8 for real-time object detection in images receiv
 
 3. View the results:
 
-    The package provides detection results for stop signs, tires, and pedestrians. The detected objects, along with their sizes, are published to specific topics.
+    The package provides detection results for stop signs, tires, simulated potholes, and pedestrians. The detected objects, along with their sizes, are published to specific topics.
 
 4. Debugging:
 
@@ -61,18 +61,25 @@ Yolo v8 models can be added or swapped out in the `/models` folder and names upd
 - Stop Sign Detection:
     - Detected Topic: `<stop_sign_detected_topic_name>`
     - Size Topic: `<stop_sign_size_topic_name>`
-    - Debug Topic: `<stop_sign_debug_topic_name>`
 
 - Person Detection:
     - Detected Topic: `<person_detected_topic_name>`
     - Size Topic: `<person_size_topic_name>`
-    - Debug Topic: `<person_debug_topic_name>`
+
+- SimulatedPothole Detection:
+    - Detected Topic: `<pothole_detected_topic_name>`
+    - Size Topic: `<pothole_size_topic_name>`
 
 - Tire Detection:
     - Detected Topic: `<tire_detected_topic_name>`
     - Size Topic: `<tire_size_topic_name>`
-    - Debug Topic: `<tire_debug_topic_name>`
 
+- Debugging:
+    - Object Debug Topic: `<object_debug_topic_name>`
+
+- Vest Mask:
+    - Vest Mask Debug Topic: `<vest_mask_topic_name>`
+  
 ## Contributing
 
 Contributions are welcome!
