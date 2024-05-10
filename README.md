@@ -8,6 +8,7 @@ This ROS package utilizes YOLOv8 for real-time object detection in images receiv
 - YOLOv8
 - OpenCV
 - Ultralytics
+- EasyOCR
 
 ## Installation
 

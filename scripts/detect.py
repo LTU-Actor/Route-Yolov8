@@ -4,6 +4,7 @@ import gc  # Garbage collection
 import time
 
 import cv2  # OpenCV version 2.x (ROS limitation)
+import easyocr  # OCR
 import numpy as np  # numpy
 import rospy  # ROS API
 import torch
@@ -30,8 +31,6 @@ global model_coco_path  # Get yolov8 COCO trained model's path
 global model_tire_path  # Get yolov8 tire detection model's path
 global model_u_model_path  # Get yolov8 u_model path
 
-global person_box  # Bounding box for person object
-
 global display_size
 display_size = 640  # pixel resolution used for debug outputs
 
@@ -40,6 +39,8 @@ global cam_image  # image used for detection
 
 global yolo_called
 yolo_called = False  # True if yolo detection is called for from topic
+global real_stop_sign_detected
+real_stop_sign_detected = False # True if real stop sign has been detected
 
 ########################################################################
 ### Functions:
@@ -195,6 +196,7 @@ def infer_image_using(
 # Take yolo v8 results object and analyze them for classes and bounding boxes
 def analyze_results(results, classes, image_size_in_sq_pixels=409600):
     # Outputs initialization:
+    global cam_image
     person_box = None
     sign_box = None
     detected = []
@@ -309,6 +311,7 @@ def clear_gpu_memory():
 
 
 def detect_object():
+    global real_stop_sign_detected
     # Detect objects
     (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
         analyze_results(
@@ -341,10 +344,42 @@ def detect_object():
 
     # Publish stop sign data
     if objects_detected[0] > 0:  # stop signs detected > 0
-        stop_sign_msg.data = objects_detected[0]
-        sign_detect_pub.publish(stop_sign_msg)
-        stop_sign_size_msg.data = objects_biggest_bounding_boxes[0]
-        sign_size_pub.publish(stop_sign_size_msg)
+        # Get the xywh info from the sign bounding box
+        sign_box_x_pos = int(sign_box.xywh[0][0])
+        sign_box_y_pos = int(sign_box.xywh[0][1])
+        sign_box_width = int(sign_box.xywh[0][2])
+        sign_box_height = int(sign_box.xywh[0][3])
+        
+        # Crop the image to the size of the bounding box
+        sign_box_left = sign_box_x_pos - 0.5 * sign_box_width
+        sign_box_right = sign_box_x_pos + 0.5 * sign_box_width
+        sign_box_top = sign_box_y_pos - 0.5 * sign_box_height
+        sign_box_bottom = sign_box_y_pos + 0.5 * sign_box_height
+        
+        # Extract the bounding box
+        sign_extracted = cam_image[
+            sign_box_top : sign_box_bottom,
+            sign_box_left : sign_box_right
+        ]
+        
+        # OCR used to extract text from the image
+        reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
+        
+        result = reader.readtext(sign_extracted, detail=0) # extract the text from the image
+        
+        # Iterates through the results and checks if STOP is in the text
+        for text in result:
+            if "STOP" in text.upper():
+                real_stop_sign_detected = True
+                break
+            else:
+                real_stop_sign_detected = False
+        
+        if real_stop_sign_detected: # if STOP is detected
+            stop_sign_msg.data = 1
+            sign_detect_pub.publish(stop_sign_msg)
+            stop_sign_size_msg.data = objects_biggest_bounding_boxes[0]
+            sign_size_pub.publish(stop_sign_size_msg)
     else:
         stop_sign_msg.data = 0
         sign_detect_pub.publish(stop_sign_msg)
@@ -394,38 +429,41 @@ def detect_object():
 
     if config_.enable_vest_mask and person_box is not None:  # Show the vest mask
         # Get the results image, make it black and paste the person bounding box with mask applied onto image
-        hsv_image = cv2.cvtColor(results_image, cv2.COLOR_BGR2HSV)
+        hsv_image = cv2.cvtColor(cam_image, cv2.COLOR_BGR2HSV)
 
         # Define lower and upper HSV thresholds for bright orange
-        lower_orange = np.array([15, 80, 90])
-        upper_orange = np.array([30, 255, 255])
+        lower_orange = np.array([config_.vest_mask_l_hue, config_.vest_mask_l_sat, config_.vest_mask_l_lum])
+        upper_orange = np.array([config_.vest_mask_h_hue, config_.vest_mask_h_sat, config_.vest_mask_h_lum])
 
         mask = cv2.inRange(hsv_image, lower_orange, upper_orange)
 
         # Get the xywh info from the person bounding box
-        person_box_x_pos = person_box.xywh[0][0]
-        person_box_y_pos = person_box.xywh[0][1]
-        person_box_width = person_box.xywh[0][2]
-        person_box_height = person_box.xywh[0][3]
+        person_box_x_pos = int(person_box.xywh[0][0])
+        person_box_y_pos = int(person_box.xywh[0][1])
+        person_box_width = int(person_box.xywh[0][2])
+        person_box_height = int(person_box.xywh[0][3])
+        
+        person_box_left = person_box_x_pos - 0.5 * person_box_width
+        person_box_right = person_box_x_pos + 0.5 * person_box_width
+        person_box_top = person_box_y_pos - 0.5 * person_box_height
+        person_box_bottom = person_box_y_pos + 0.5 * person_box_height
 
         # Extract the bounding box from the mask image
         vest_mask_img_box = mask[
-            person_box_y_pos : (person_box_y_pos + person_box_height),
-            person_box_x_pos : (person_box_x_pos + person_box_width),
+            person_box_top : person_box_bottom,
+            person_box_left : person_box_right
         ]
 
         # Apply the black_mask to the mask image to make black_img
-        black_mask = np.zeros_like(mask)
-        black_mask[:, :] = (0, 0, 0)
-        black_img = cv2.bitwise_and(mask, black_mask)
+        black_img = np.zeros_like(mask)
 
         # Paste the vest_mask_img_box onto the black_img
         black_img[
-            person_box_y_pos : (person_box_y_pos + person_box_height),
-            person_box_x_pos : (person_box_x_pos + person_box_width),
+            person_box_top: person_box_bottom,
+            person_box_left : person_box_right
         ] = vest_mask_img_box
 
-        # nConvert new black image to imgmsg
+        # Convert new black image to imgmsg
         debug_img = bridge.cv2_to_imgmsg(black_img, "bgr8")
         vest_mask_pub.publish(debug_img)
 
