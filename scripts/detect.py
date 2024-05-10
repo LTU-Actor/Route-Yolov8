@@ -351,10 +351,10 @@ def detect_object():
         sign_box_height = int(sign_box.xywh[0][3])
         
         # Crop the image to the size of the bounding box
-        sign_box_left = sign_box_x_pos - 0.5 * sign_box_width
-        sign_box_right = sign_box_x_pos + 0.5 * sign_box_width
-        sign_box_top = sign_box_y_pos - 0.5 * sign_box_height
-        sign_box_bottom = sign_box_y_pos + 0.5 * sign_box_height
+        sign_box_left = int(sign_box_x_pos - 0.5 * sign_box_width)
+        sign_box_right = int(sign_box_x_pos + 0.5 * sign_box_width)
+        sign_box_top = int(sign_box_y_pos - 0.5 * sign_box_height)
+        sign_box_bottom = int(sign_box_y_pos + 0.5 * sign_box_height)
         
         # Extract the bounding box
         sign_extracted = cam_image[
@@ -443,10 +443,10 @@ def detect_object():
         person_box_width = int(person_box.xywh[0][2])
         person_box_height = int(person_box.xywh[0][3])
         
-        person_box_left = person_box_x_pos - 0.5 * person_box_width
-        person_box_right = person_box_x_pos + 0.5 * person_box_width
-        person_box_top = person_box_y_pos - 0.5 * person_box_height
-        person_box_bottom = person_box_y_pos + 0.5 * person_box_height
+        person_box_left = int(person_box_x_pos - 0.5 * person_box_width)
+        person_box_right = int(person_box_x_pos + 0.5 * person_box_width)
+        person_box_top = int(person_box_y_pos - 0.5 * person_box_height)
+        person_box_bottom = int(person_box_y_pos + 0.5 * person_box_height)
 
         # Extract the bounding box from the mask image
         vest_mask_img_box = mask[
