@@ -46,6 +46,10 @@ This ROS package utilizes YOLOv8 for real-time object detection in images receiv
 
     If debugging is enabled (set in the rqt dynamic reconfigure), annotated images showing the detected objects are published to debug topics.
 
+5. Vest Mask:
+
+    If vest mask is enabled (set in the rqt dynamic reconfigure), an image showing the vest mask is published to the vest mask topic.
+
 ## Configuration
 
 The package supports dynamic reconfiguration through the ROS Parameter Server. Parameters such as image resizing, flipping, and debugging can be adjusted on-the-fly.
@@ -78,7 +82,7 @@ Yolo v8 models can be added or swapped out in the `/models` folder and names upd
     - Object Debug Topic: `<object_debug_topic_name>`
 
 - Vest Mask:
-    - Vest Mask Debug Topic: `<vest_mask_topic_name>`
+    - Vest Mask Topic: `<vest_mask_topic_name>`
   
 ## Contributing
 
