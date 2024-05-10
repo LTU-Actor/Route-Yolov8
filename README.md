@@ -1,6 +1,6 @@
 # ROS YOLOv8 Object Detection Package
 
-This ROS package utilizes YOLOv8 for real-time object detection in images received from a camera topic. The package is designed to detect specific objects, such as stop signs, tires, simulated potholes, and pedestrians, based on user requests. The package implements EasyOCR for differentiating between fake stop signs from real stop signs. The package can also display a mask to highlight an orange vest on a pedestrian.
+This ROS package utilizes YOLOv8 for real-time object detection in images received from a camera topic. The package is designed to detect specific objects, such as stop signs, tires, simulated potholes, and pedestrians, based on user requests. The package implements EasyOCR for differentiating between fake stop signs and real stop signs. The package can also display a mask to highlight an orange vest on a pedestrian.
 
 ## Prerequisites
 
