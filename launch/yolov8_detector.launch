@@ -37,6 +37,7 @@
 
         <param name="object_debug_topic_name" type="string" value="/object_detector/debug" />
         <param name="vest_mask_topic_name" type="string" value="/vest_mask" />
+        <param name="sign_box_topic_name" type="string" value="/sign_box" />
 
     </node>
 

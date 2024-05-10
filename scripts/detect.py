@@ -233,7 +233,7 @@ def analyze_results(results, classes, image_size_in_sq_pixels=409600):
                     sign_area > stop_sign_biggest_bounding_box
                 ):  # Store the largest bounding box
                     stop_sign_biggest_bounding_box = sign_area
-                    sign_box = box
+                    sign_box = box # Store the sign box for OCR
             if label == "tire":  # Check if label matches the class we are looking for
                 tire_detected += 1  # Counter for individual detections
                 # Find the width and height of the bounding box
@@ -311,6 +311,7 @@ def clear_gpu_memory():
 
 
 def detect_object():
+    global cam_image
     global real_stop_sign_detected
     # Detect objects
     (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
@@ -345,10 +346,10 @@ def detect_object():
     # Publish stop sign data
     if objects_detected[0] > 0:  # stop signs detected > 0
         # Get the xywh info from the sign bounding box
-        sign_box_x_pos = int(sign_box.xywh[0][0])
-        sign_box_y_pos = int(sign_box.xywh[0][1])
-        sign_box_width = int(sign_box.xywh[0][2])
-        sign_box_height = int(sign_box.xywh[0][3])
+        sign_box_x_pos = sign_box.xywh[0][0]
+        sign_box_y_pos = sign_box.xywh[0][1]
+        sign_box_width = sign_box.xywh[0][2]
+        sign_box_height = sign_box.xywh[0][3]
         
         # Crop the image to the size of the bounding box
         sign_box_left = int(sign_box_x_pos - 0.5 * sign_box_width)
@@ -361,6 +362,9 @@ def detect_object():
             sign_box_top : sign_box_bottom,
             sign_box_left : sign_box_right
         ]
+        
+        if config_.enable_sign_box:
+            sign_box_pub.publish(sign_extracted)
         
         # OCR used to extract text from the image
         reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
@@ -438,29 +442,30 @@ def detect_object():
         mask = cv2.inRange(hsv_image, lower_orange, upper_orange)
 
         # Get the xywh info from the person bounding box
-        person_box_x_pos = int(person_box.xywh[0][0])
-        person_box_y_pos = int(person_box.xywh[0][1])
-        person_box_width = int(person_box.xywh[0][2])
-        person_box_height = int(person_box.xywh[0][3])
+        person_box_x_pos = person_box.xywh[0][0]
+        person_box_y_pos = person_box.xywh[0][1]
+        person_box_width = person_box.xywh[0][2]
+        person_box_height = person_box.xywh[0][3]
         
-        person_box_left = int(person_box_x_pos - 0.5 * person_box_width)
-        person_box_right = int(person_box_x_pos + 0.5 * person_box_width)
-        person_box_top = int(person_box_y_pos - 0.5 * person_box_height)
-        person_box_bottom = int(person_box_y_pos + 0.5 * person_box_height)
+        person_box_x_low = int(person_box_x_pos - 0.5 * person_box_width)
+        person_box_x_high = int(person_box_x_pos + 0.5 * person_box_width)
+        person_box_y_low = int(person_box_y_pos - 0.5 * person_box_height)
+        person_box_y_high = int(person_box_y_pos + 0.5 * person_box_height)
 
         # Extract the bounding box from the mask image
         vest_mask_img_box = mask[
-            person_box_top : person_box_bottom,
-            person_box_left : person_box_right
+            person_box_y_low : person_box_y_high,
+            person_box_x_low : person_box_x_high
         ]
 
         # Apply the black_mask to the mask image to make black_img
-        black_img = np.zeros_like(mask)
+        black_mask = np.zeros_like(mask)
+        black_img = cv2.bitwise_and(mask, black_mask)
 
         # Paste the vest_mask_img_box onto the black_img
         black_img[
-            person_box_top: person_box_bottom,
-            person_box_left : person_box_right
+            person_box_y_low: person_box_y_high,
+            person_box_x_low : person_box_x_high
         ] = vest_mask_img_box
 
         # Convert new black image to imgmsg
@@ -653,11 +658,18 @@ if __name__ == "__main__":
         object_debug_topic, Image, queue_size=1
     )  # Anotated image debug output
 
-    # >>> Topics and publishers for person vest mask
+    # >>> Topics and publishers for person vest mask and sign box
+    # Person bounding box with mask for vest extraction
     vest_mask_topic = rospy.get_param("~vest_mask_topic_name")
     vest_mask_pub = rospy.Publisher(
         vest_mask_topic, Image, queue_size=1
-    )  # Person bounding box with mask for vest extraction
+    )
+    
+    # Sign bounding box
+    sign_box_topic = rospy.get_param("~sign_box_topic_name")
+    sign_box_pub = rospy.Publisher(
+        sign_box_topic, Image, queue_size=1
+    )
 
     rospy.spin()  # Runs callbacks
 
