@@ -30,6 +30,7 @@ global model_stop_path  # Get yolov8 stop sign detection model's path
 global model_coco_path  # Get yolov8 COCO trained model's path
 global model_tire_path  # Get yolov8 tire detection model's path
 global model_u_model_path  # Get yolov8 u_model path
+global model_u_model_2_path  # Get yolov8 u_model_2 path
 
 global display_size
 display_size = 640  # pixel resolution used for debug outputs
@@ -320,16 +321,12 @@ def detect_object():
     global real_stop_sign_detected
     global ocr_reader
     # Detect objects
-    (
-        objects_detected,
-        objects_biggest_bounding_boxes,
-        person_box,
-        sign_box,
-        results_image,
-    ) = analyze_results(
-        infer_image_using(_path=model_u_model_path, _source=cam_image),
-        classes={"stop-sign", "tire", "pothole", "person"},
-        image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+    (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
+        analyze_results(
+            infer_image_using(_path=model_u_model_2_path, _source=cam_image),
+            classes={"stop-sign", "tire", "pothole", "person"},
+            image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+        )
     )
 
     stop_sign_msg = UInt8()
@@ -610,9 +607,8 @@ if __name__ == "__main__":
     model_coco_path = rospy.get_param("~model_coco_path_from_root")  # Load latest path
     model_stop_path = rospy.get_param("~model_stop_path_from_root")  # Load latest path
     model_tire_path = rospy.get_param("~model_tire_path_from_root")  # Load latest path
-    model_u_model_path = rospy.get_param(
-        "~model_u_model_path_from_root"
-    )  # Load u_model path
+    model_u_model_path = rospy.get_param("~model_u_model_path_from_root")  # Load u_model path
+    model_u_model_2_path = rospy.get_param("~model_u_model_2_path_from_root")  # Load u_model_2 path
 
     # Image input from topic - from launch file
     imgtopic = rospy.get_param("~imgtopic_name")
