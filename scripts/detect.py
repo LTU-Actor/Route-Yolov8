@@ -320,12 +320,13 @@ def detect_object():
     global cam_image
     global real_stop_sign_detected
     global ocr_reader
+    sign_img = cam_image
     # Detect objects
     (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
         analyze_results(
-            infer_image_using(_path=model_u_model_2_path, _source=cam_image),
+            infer_image_using(_path=model_u_model_path, _source=sign_img),
             classes={"stop-sign", "tire", "pothole", "person"},
-            image_size_in_sq_pixels=(cam_image.shape[0] * cam_image.shape[1]),
+            image_size_in_sq_pixels=(sign_img.shape[0] * sign_img.shape[1]),
         )
     )
 
@@ -365,7 +366,7 @@ def detect_object():
         sign_box_bottom = int(sign_box_y_pos + 0.5 * sign_box_height)
 
         # Extract the bounding box
-        sign_extracted = cam_image[
+        sign_extracted = sign_img[
             sign_box_top:sign_box_bottom, sign_box_left:sign_box_right
         ]
 
@@ -447,7 +448,7 @@ def detect_object():
 
     if config_.enable_vest_mask and person_box is not None:  # Show the vest mask
         # Get the results image, make it black and paste the person bounding box with mask applied onto image
-        hsv_image = cv2.cvtColor(cam_image, cv2.COLOR_BGR2HSV)
+        hsv_image = cv2.cvtColor(sign_img, cv2.COLOR_BGR2HSV)
 
         # Define lower and upper HSV thresholds for bright orange
         lower_orange = np.array(
@@ -485,7 +486,7 @@ def detect_object():
         ] = vest_mask_img_box
 
         # Convert new black image to imgmsg
-        debug_img = bridge.cv2_to_imgmsg(black_img, "bgr8")
+        debug_img = bridge.cv2_to_imgmsg(black_img)
         vest_mask_pub.publish(debug_img)
 
     clear_gpu_memory()
