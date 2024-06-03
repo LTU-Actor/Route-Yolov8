@@ -37,6 +37,7 @@ display_size = 640  # pixel resolution used for debug outputs
 
 global image_size  # pixel resolution used for inference
 global cam_image  # image used for detection
+global look_for # string of object to look for
 
 global yolo_called
 yolo_called = False  # True if yolo detection is called for from topic
@@ -87,6 +88,7 @@ def get_image_callback(Image):
 
 # Listener for yolo detection calls, routes them accordingly
 def yolo_look_for_object_callback(String):
+    global look_for
     global yolo_called
     yolo_called = True
     # When called
@@ -321,6 +323,14 @@ def detect_object():
     global real_stop_sign_detected
     global ocr_reader
     latest_img = cam_image
+    
+    # If we are doing pothole lane change, crop the image to only the lane
+    if (config_.pothole_lane_change and (look_for == "pothole" or look_for == "potholes")):
+        latest_img = latest_img[config_.pothole_crop_top:config_.pothole_crop_bottom, config_.pothole_crop_left:config_.pothole_crop_right]
+        latest_img = resize_image(latest_img, size=(config_.pothole_image_resize, config_.pothole_image_resize))
+        pothole_crop_degug_img = bridge.cv2_to_imgmsg(latest_img, "bgr8")
+        pothole_crop_pub.publish(pothole_crop_degug_img)
+        
     # Detect objects
     (objects_detected, objects_biggest_bounding_boxes, person_box, sign_box, results_image) = (
         analyze_results(
@@ -580,6 +590,10 @@ if __name__ == "__main__":
     # Sign bounding box
     sign_box_topic = rospy.get_param("~sign_box_topic_name")
     sign_box_pub = rospy.Publisher(sign_box_topic, Image, queue_size=1)
+    
+    #Pothole crop
+    pothole_crop_topic = rospy.get_param("~pothole_crop_debug_topic_name")
+    pothole_crop_pub = rospy.Publisher(pothole_crop_topic, Image, queue_size=1)
 
     rospy.spin()  # Runs callbacks
 
